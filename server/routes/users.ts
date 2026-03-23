@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import dbModule from '../database.js';
+import { dbAll, dbGet, dbRun } from '../database.js';
 import { authenticateToken } from './auth.js';
 
 const router = Router();
@@ -12,15 +12,13 @@ router.get('/search', async (req: any, res) => {
   console.log(`[Search] User ID ${userId} searching for "${query}"`);
   
   try {
-    const db = dbModule.getDb();
-    // Case-insensitive search using LOWER()
-    const users = await db.all(`
+    const users = await dbAll(`
       SELECT id, email, nickname, is_bot, public_key FROM users 
-      WHERE (LOWER(email) LIKE LOWER(?) OR LOWER(nickname) LIKE LOWER(?)) AND id != ?
+      WHERE (LOWER(email) LIKE LOWER($1) OR LOWER(nickname) LIKE LOWER($2)) AND id != $3
       LIMIT 10
     `, `%${query}%`, `%${query}%`, userId);
     
-    console.log(`[Search] Found ${users.length} users. Results:`, users.map(u => u.nickname));
+    console.log(`[Search] Found ${users.length} users. Results:`, users.map((u: any) => u.nickname));
     res.json(users);
   } catch (error) {
     console.error('Search users error:', error);
@@ -33,8 +31,7 @@ router.post('/public-key', async (req: any, res) => {
   const userId = req.user.id;
   
   try {
-    const db = dbModule.getDb();
-    await db.run('UPDATE users SET public_key = ? WHERE id = ?', publicKey, userId);
+    await dbRun('UPDATE users SET public_key = $1 WHERE id = $2', publicKey, userId);
     res.json({ success: true });
   } catch (error) {
     console.error('Update public key error:', error);
@@ -46,8 +43,7 @@ router.get('/:id/public-key', async (req: any, res) => {
   const targetId = req.params.id;
   
   try {
-    const db = dbModule.getDb();
-    const user = await db.get('SELECT public_key FROM users WHERE id = ?', targetId);
+    const user = await dbGet('SELECT public_key FROM users WHERE id = $1', targetId);
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({ publicKey: user.public_key });
   } catch (error) {

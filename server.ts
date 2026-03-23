@@ -6,7 +6,6 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import fs from 'fs';
-import rateLimit from 'express-rate-limit';
 import cors from 'cors';
 import helmet from 'helmet';
 
@@ -35,27 +34,16 @@ async function startServer() {
   const PORT = parseInt(process.env.PORT || '3000', 10);
   
   app.use(helmet({
-    contentSecurityPolicy: false, // Disable CSP for testing in AI Studio
+    contentSecurityPolicy: false,
     frameguard: false,
     crossOriginOpenerPolicy: false,
     crossOriginResourcePolicy: false
   }));
 
-  app.use(cors()); // Permissive CORS for testing
+  app.use(cors());
   app.use(express.json());
-  
-  // Disable rate limiting for testing
-  // app.use('/api/auth', authLimiter);
-  // app.use('/api/chats/*/messages', messageLimiter);
 
-  // Ensure uploads directory exists
-  const uploadsDir = path.join(__dirname, 'uploads');
-  if (!fs.existsSync(uploadsDir)) {
-    console.log('Creating uploads directory...');
-    fs.mkdirSync(uploadsDir);
-  }
-
-  // Database initialization
+  // Database initialization (PostgreSQL via Supabase)
   console.log('Initializing database...');
   const dbModule = await import('./server/database.js');
   await dbModule.default.initDb();

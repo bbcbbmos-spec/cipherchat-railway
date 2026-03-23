@@ -1,42 +1,66 @@
 import { Router } from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import dbModule from '../database.js';
+import { v2 as cloudinary } from 'cloudinary';
+import { dbGet, dbRun } from '../database.js';
 import { authenticateToken } from './auth.js';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const router = Router();
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
 const ALLOWED_MIME = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf',
-  'text/plain', 'video/mp4', 'audio/mpeg', 'application/zip'
+  'text/plain', 'video/mp4', 'audio/mpeg', 'audio/webm', 'video/webm', 'application/zip'
 ];
 
+// Use memory storage instead of disk — we upload to Cloudinary
 const upload = multer({
-  dest: path.join(__dirname, '../../uploads/'),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024, files: 5 },
   fileFilter: (req, file, cb) => {
     cb(null, ALLOWED_MIME.includes(file.mimetype));
   }
 });
 
+// Helper: upload buffer to Cloudinary
+async function uploadToCloudinary(fileBuffer: Buffer, originalName: string, mimeType: string): Promise<string> {
+  const resourceType = mimeType.startsWith('video/') || mimeType.startsWith('audio/') ? 'video' : 
+                        mimeType.startsWith('image/') ? 'image' : 'raw';
+  
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'cipherchat',
+        resource_type: resourceType,
+        public_id: `${Date.now()}_${originalName.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
+      },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result!.secure_url);
+      }
+    );
+    uploadStream.end(fileBuffer);
+  });
+}
+
 router.use(authenticateToken);
 
 router.post('/upload', upload.array('files'), async (req: any, res) => {
   const { chatId, encryptedText, iv, fileKeys } = req.body;
   const userId = req.user.id;
-  const files = req.files as any[];
+  const files = req.files as Express.Multer.File[];
   
   try {
-    const db = dbModule.getDb();
-    const messageResult = await db.run(
-      'INSERT INTO messages (chat_id, sender_id, encrypted_text, iv) VALUES (?, ?, ?, ?)',
+    const messageResult = await dbRun(
+      'INSERT INTO messages (chat_id, sender_id, encrypted_text, iv) VALUES ($1, $2, $3, $4) RETURNING id',
       chatId, userId, encryptedText, iv
     );
-    const messageId = messageResult.lastID;
+    const messageId = messageResult.rows[0].id;
     
     const uploadedFiles = [];
     const keys = JSON.parse(fileKeys);
@@ -44,11 +68,15 @@ router.post('/upload', upload.array('files'), async (req: any, res) => {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const keyData = keys[i];
-      const result = await db.run(
-        'INSERT INTO attachments (message_id, file_path, encrypted_key, iv, original_name, mime_type) VALUES (?, ?, ?, ?, ?, ?)',
-        messageId, file.path, keyData.wrappedKey, keyData.iv, file.originalname, file.mimetype
+      
+      // Upload to Cloudinary
+      const cloudinaryUrl = await uploadToCloudinary(file.buffer, file.originalname, file.mimetype);
+      
+      const result = await dbRun(
+        'INSERT INTO attachments (message_id, file_path, encrypted_key, iv, original_name, mime_type) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+        messageId, cloudinaryUrl, keyData.wrappedKey, keyData.iv, file.originalname, file.mimetype
       );
-      uploadedFiles.push({ id: result.lastID, original_name: file.originalname });
+      uploadedFiles.push({ id: result.rows[0].id, original_name: file.originalname, url: cloudinaryUrl });
     }
     
     res.json({ messageId, files: uploadedFiles });
@@ -63,36 +91,17 @@ router.get('/:id', async (req: any, res) => {
   const userId = req.user.id;
   
   try {
-    const db = dbModule.getDb();
-    const attachment = await db.get(`
+    const attachment = await dbGet(`
       SELECT a.*, m.chat_id FROM attachments a
       JOIN messages m ON a.message_id = m.id
       JOIN chat_participants cp ON m.chat_id = cp.chat_id
-      WHERE a.id = ? AND cp.user_id = ?
+      WHERE a.id = $1 AND cp.user_id = $2
     `, fileId, userId);
     
     if (!attachment) return res.sendStatus(403);
     
-    // Path traversal protection
-    const safePath = path.resolve(attachment.file_path);
-    const uploadsDir = path.resolve(__dirname, '../../uploads');
-    
-    if (!safePath.startsWith(uploadsDir)) {
-      console.error('Path traversal attempt detected:', safePath);
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    if (!fs.existsSync(safePath)) {
-      return res.status(404).json({ error: 'File not found on server' });
-    }
-    
-    const safeMime = ALLOWED_MIME.includes(attachment.mime_type) ? attachment.mime_type : 'application/octet-stream';
-    res.setHeader('Content-Type', safeMime);
-    
-    const safeFilename = encodeURIComponent(attachment.original_name).replace(/'/g, '%27');
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${safeFilename}`);
-    
-    fs.createReadStream(safePath).pipe(res);
+    // file_path now contains Cloudinary URL — redirect to it
+    res.redirect(attachment.file_path);
   } catch (error) {
     console.error('Download error:', error);
     res.status(500).json({ error: 'Internal server error' });
