@@ -8,6 +8,14 @@ import fs from 'fs';
 import cors from 'cors';
 import helmet from 'helmet';
 
+// Debug: check if Railway env vars are available
+console.log('ENV CHECK:', {
+  DATABASE_URL: process.env.DATABASE_URL ? 'SET' : 'MISSING',
+  NODE_ENV: process.env.NODE_ENV,
+  PORT: process.env.PORT,
+  KEYS: Object.keys(process.env).filter(k => k.startsWith('DATABASE') || k.startsWith('CLOUD') || k.startsWith('JWT') || k.startsWith('VITE') || k.startsWith('NODE_ENV') || k.startsWith('PORT'))
+});
+
 // Load environment variables
 
 const __filename = fileURLToPath(import.meta.url);
