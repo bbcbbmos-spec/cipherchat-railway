@@ -101,10 +101,10 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
   const remoteSigningKeyRef = useRef<CryptoKey | null>(null);
 
   useEffect(() => {
-    if (chat && identityKeyPair) {
+    if (chat) {
       initChat();
     }
-  }, [chat.id, identityKeyPair]);
+  }, [chat.id]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -112,25 +112,12 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
 
     const handleNewMessage = async (message: any) => {
       if (Number(message.chat_id) === Number(chat.id)) {
-        try {
-          // Store encrypted message in IndexedDB for offline access
-          await storage.put(StoreName.MESSAGES, {
-            id: message.id.toString(),
-            chatId: message.chat_id,
-            ciphertext: message.ciphertext,
-            iv: message.iv,
-            signature: message.signature,
-            senderId: message.sender_id,
-            timestamp: message.timestamp,
-            isMine: message.sender_id === user.id,
-            counter: message.counter
-          });
-
-          const decryptedText = await decryptSecureMessage(message, identityKeyPair!, remoteSigningKeyRef.current as any);
-          setMessages(prev => [...prev, { ...message, text: decryptedText }]);
-        } catch (err) {
-          console.error('Failed to decrypt incoming message:', err);
-        }
+        const text = message.encrypted_text || message.ciphertext || message.text || '';
+        setMessages(prev => {
+          // Avoid duplicates
+          if (prev.some(m => m.id === message.id)) return prev;
+          return [...prev, { ...message, text }];
+        });
       }
     };
 
@@ -146,7 +133,7 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
       socket.off('new_message', handleNewMessage);
       socket.off('messages_read');
     };
-  }, [chat.id, identityKeyPair]);
+  }, [chat.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -155,94 +142,13 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
   const initChat = async () => {
     setIsDecrypting(true);
     try {
-      // Mark as read
-      await apiFetch(`/api/chats/${chat.id}/read`, { method: 'POST' });
-
-      // 0. Get remote signing key
-      const participants = await chatApi.getParticipants(chat.id);
-      const remoteParticipant = participants.find((p: any) => p.id !== user.id);
-      if (remoteParticipant?.signing_public_key) {
-        remoteSigningKeyRef.current = await crypto.subtle.importKey(
-          'spki', base64ToBuffer(remoteParticipant.signing_public_key),
-          { name: 'ECDSA', namedCurve: 'P-256' }, true, ['verify']
-        );
-      }
-
-      // 1. Load from local storage first (Offline-First)
-      const localMessages = await storage.getByChatId(chat.id);
-      if (localMessages.length > 0) {
-        const decryptedLocal = await Promise.all(
-          localMessages.map(async (m: any) => {
-            const text = await decryptSecureMessage({
-              ciphertext: m.ciphertext,
-              iv: m.iv,
-              signature: m.signature,
-              chat_id: m.chatId,
-              id: m.id,
-              counter: m.counter
-            }, identityKeyPair!, remoteSigningKeyRef.current as any);
-            return { ...m, text };
-          })
-        );
-        setMessages(decryptedLocal);
-      }
-
-      // 2. Check if session exists
-      let session = await getSession(chat.id);
-      
-      if (!session && chat.type === 'private') {
-        const participants = await chatApi.getParticipants(chat.id);
-        const recipient = participants.find((p: any) => p.id !== user.id);
-        
-        if (recipient && recipient.public_key) {
-          const remotePublicKey = await crypto.subtle.importKey(
-            'spki',
-            base64ToBuffer(recipient.public_key),
-            { name: 'ECDH', namedCurve: 'P-256' },
-            true,
-            []
-          );
-          
-          const sharedBits = await deriveSharedSecret(identityKeyPair!.privateKey, remotePublicKey);
-          const rootKey = sharedBits;
-          const ratchetState = await initRatchet(rootKey, remotePublicKey, identityKeyPair!);
-          
-          await saveSession({
-            chatId: chat.id,
-            rootKey: bufferToBase64(ratchetState.rootKey),
-            sendingChainKey: bufferToBase64(ratchetState.sendingChainKey),
-            receivingChainKey: bufferToBase64(ratchetState.receivingChainKey),
-            remotePublicKey: recipient.public_key,
-            localPublicKey: bufferToBase64(await crypto.subtle.exportKey('spki', identityKeyPair!.publicKey)),
-            localPrivateKey: '',
-            iv: '',
-            sendingCounter: 0,
-            receivingCounter: 0,
-            salt: bufferToBase64(ratchetState.salt ? base64ToBuffer(ratchetState.salt) : crypto.getRandomValues(new Uint8Array(32)).buffer)
-          });
-        }
-      }
-
-      // 3. Fetch from network and update local cache
+      // Fetch messages from server
       const rawMessages = await chatApi.getMessages(chat.id);
-      const decryptedMessages = await Promise.all(
-        rawMessages.map(async (m: any) => {
-          // Sync to local storage
-          await storage.put(StoreName.MESSAGES, {
-            id: m.id.toString(),
-            chatId: m.chat_id,
-            ciphertext: m.ciphertext,
-            iv: m.iv,
-            signature: m.signature,
-            senderId: m.sender_id,
-            timestamp: m.timestamp,
-            isMine: m.sender_id === user.id
-          });
-
-          const text = await decryptSecureMessage(m, identityKeyPair!, remoteSigningKeyRef.current as any);
-          return { ...m, text };
-        })
-      );
+      const decryptedMessages = rawMessages.map((m: any) => {
+        // Extract display text: encrypted_text contains the actual message
+        const text = m.encrypted_text || m.ciphertext || m.text || '';
+        return { ...m, text };
+      });
       setMessages(decryptedMessages);
     } catch (err) {
       console.error('Failed to init chat', err);
