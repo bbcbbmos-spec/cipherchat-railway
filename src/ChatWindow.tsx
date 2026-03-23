@@ -164,7 +164,23 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
     if (pendingFile) {
       setIsUploading(true);
       try {
-        await chatApi.uploadFile(pendingFile, chat.id);
+        const result = await chatApi.uploadFile(pendingFile, chat.id);
+        // Add the uploaded message to the chat
+        if (result && result.id) {
+          const text = result.encrypted_text || result.text || '';
+          setMessages(prev => {
+            if (prev.some(m => m.id === result.id)) return prev;
+            return [...prev, { ...result, text }];
+          });
+          // Notify others via socket
+          const socket = getSocket();
+          socket.emit('send_message', {
+            chatId: chat.id,
+            encryptedText: result.encrypted_text || '📎 File',
+            iv: 'PLAIN',
+            messageId: result.id
+          });
+        }
         setPendingFile(null);
         setPendingFilePreview(null);
         if (fileInputRef.current) fileInputRef.current.value = '';

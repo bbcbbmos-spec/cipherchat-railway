@@ -61,7 +61,7 @@ export const chatApi = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('chat_id', chatId.toString());
-    const res = await fetch(`${API_BASE}/api/upload`, {
+    const res = await fetch(`${API_BASE}/api/files/simple-upload`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -69,6 +69,10 @@ export const chatApi = {
       },
       body: formData
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+      throw new Error(err.error || 'Upload failed');
+    }
     return res.json();
   }
 };

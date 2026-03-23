@@ -14,8 +14,11 @@ cloudinary.config({
 });
 
 const ALLOWED_MIME = [
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf',
-  'text/plain', 'video/mp4', 'audio/mpeg', 'audio/webm', 'video/webm', 'application/zip'
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
+  'application/pdf', 'text/plain', 'application/octet-stream',
+  'video/mp4', 'video/quicktime', 'video/webm',
+  'audio/mpeg', 'audio/webm', 'audio/mp4', 'audio/aac',
+  'application/zip'
 ];
 
 // Use memory storage instead of disk — we upload to Cloudinary
@@ -50,6 +53,7 @@ async function uploadToCloudinary(fileBuffer: Buffer, originalName: string, mime
 
 router.use(authenticateToken);
 
+// Advanced upload with encryption keys (original)
 router.post('/upload', upload.array('files'), async (req: any, res) => {
   const { chatId, encryptedText, iv, fileKeys } = req.body;
   const userId = req.user.id;
@@ -82,6 +86,78 @@ router.post('/upload', upload.array('files'), async (req: any, res) => {
     res.json({ messageId, files: uploadedFiles });
   } catch (error) {
     console.error('Upload error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Simple upload — single file + chat_id (used by mobile/frontend chatApi.uploadFile)
+router.post('/simple-upload', upload.single('file'), async (req: any, res) => {
+  const userId = req.user.id;
+  const file = req.file as Express.Multer.File;
+  const chatId = req.body.chat_id;
+
+  if (!file) {
+    return res.status(400).json({ error: 'No file provided' });
+  }
+  if (!chatId) {
+    return res.status(400).json({ error: 'chat_id is required' });
+  }
+
+  try {
+    // Upload to Cloudinary
+    const cloudinaryUrl = await uploadToCloudinary(file.buffer, file.originalname, file.mimetype);
+
+    // Determine message type
+    let messageType = 'file';
+    if (file.mimetype.startsWith('image/')) messageType = 'image';
+    else if (file.mimetype.startsWith('video/')) messageType = 'video';
+    else if (file.mimetype.startsWith('audio/')) messageType = 'voice';
+
+    // Create message with file info
+    const messageText = messageType === 'image' ? '📷 Photo' :
+                        messageType === 'video' ? '🎬 Video' :
+                        messageType === 'voice' ? '🎤 Voice' :
+                        `📎 ${file.originalname}`;
+
+    const messageResult = await dbRun(
+      'INSERT INTO messages (chat_id, sender_id, encrypted_text, iv) VALUES ($1, $2, $3, $4) RETURNING id',
+      chatId, userId, messageText, 'PLAIN'
+    );
+    const messageId = messageResult.rows[0].id;
+
+    // Save attachment
+    const attachResult = await dbRun(
+      'INSERT INTO attachments (message_id, file_path, encrypted_key, iv, original_name, mime_type) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+      messageId, cloudinaryUrl, '', '', file.originalname, file.mimetype
+    );
+
+    // Get sender info
+    const sender = await dbGet('SELECT nickname FROM users WHERE id = $1', userId);
+
+    // Broadcast via Socket.IO (import io from server would be circular, so we return data and let client handle)
+    const message = {
+      id: messageId,
+      chat_id: Number(chatId),
+      sender_id: userId,
+      sender_nickname: sender?.nickname,
+      encrypted_text: messageText,
+      iv: 'PLAIN',
+      timestamp: new Date().toISOString(),
+      message_type: messageType,
+      file_url: cloudinaryUrl,
+      file_name: file.originalname,
+      file_size: file.size,
+      attachments: [{
+        id: attachResult.rows[0].id,
+        original_name: file.originalname,
+        mime_type: file.mimetype,
+        file_url: cloudinaryUrl
+      }]
+    };
+
+    res.json(message);
+  } catch (error) {
+    console.error('Simple upload error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
