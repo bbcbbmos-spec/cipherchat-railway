@@ -8,11 +8,15 @@ const { Pool } = pg;
 let pool: pg.Pool;
 
 export async function initDb() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL environment variable is not set!');
+  }
+  console.log('Connecting to database:', databaseUrl.replace(/:[^:@]+@/, ':****@'));
+  
   pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL?.includes('supabase')
-      ? { rejectUnauthorized: false }
-      : undefined,
+    connectionString: databaseUrl,
+    ssl: { rejectUnauthorized: false },
   });
 
   // Test connection
@@ -79,7 +83,7 @@ export async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
   `);
 
-  // Seed bots (INSERT ... ON CONFLICT DO NOTHING = INSERT OR IGNORE в SQLite)
+  // Seed bots
   await client.query(
     `INSERT INTO users (email, nickname, password_hash, is_bot) VALUES ('q@bot.local', 'q', 'bot_password_hash', 1) ON CONFLICT (email) DO NOTHING`
   );
