@@ -16,8 +16,6 @@ console.log('ENV CHECK:', {
   KEYS: Object.keys(process.env).filter(k => k.startsWith('DATABASE') || k.startsWith('CLOUD') || k.startsWith('JWT') || k.startsWith('VITE') || k.startsWith('NODE_ENV') || k.startsWith('PORT'))
 });
 
-// Load environment variables
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 

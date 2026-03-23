@@ -1,6 +1,5 @@
 import pg from 'pg';
 
-
 const { Pool } = pg;
 
 let pool: pg.Pool;
@@ -81,7 +80,7 @@ export async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
   `);
 
-  // Seed bots
+  // Seed bots (INSERT ... ON CONFLICT DO NOTHING = INSERT OR IGNORE в SQLite)
   await client.query(
     `INSERT INTO users (email, nickname, password_hash, is_bot) VALUES ('q@bot.local', 'q', 'bot_password_hash', 1) ON CONFLICT (email) DO NOTHING`
   );
