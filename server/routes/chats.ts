@@ -52,22 +52,22 @@ router.post('/', async (req: any, res) => {
       return res.status(400).json({ error: 'Один или несколько участников не существуют' });
     }
 
-    // Check if all non-bot participants have encrypted keys (if provided)
-    if (encryptedKeys) {
-      const botIds = await dbAll(
-        `SELECT id FROM users WHERE id IN (${placeholders}) AND is_bot = 1`,
-        ...allParticipants
-      );
-      const botIdSet = new Set(botIds.map((b: any) => b.id));
-      
-      for (const pid of allParticipants) {
-        if (botIdSet.has(pid)) continue;
-        const pidStr = pid.toString();
-        if (!encryptedKeys[pidStr]) {
-          return res.status(400).json({ error: `Отсутствует зашифрованный ключ для участника ${pid}` });
-        }
-      }
-    }
+    // Encrypted keys validation — skipped while encryption is disabled
+    // When encryption is enabled later, uncomment the validation below:
+    // if (encryptedKeys) {
+    //   const botIds = await dbAll(
+    //     `SELECT id FROM users WHERE id IN (${placeholders}) AND is_bot = 1`,
+    //     ...allParticipants
+    //   );
+    //   const botIdSet = new Set(botIds.map((b: any) => b.id));
+    //   for (const pid of allParticipants) {
+    //     if (botIdSet.has(pid)) continue;
+    //     const pidStr = pid.toString();
+    //     if (!encryptedKeys[pidStr]) {
+    //       return res.status(400).json({ error: `Отсутствует зашифрованный ключ для участника ${pid}` });
+    //     }
+    //   }
+    // }
 
     const chatResult = await dbRun(
       'INSERT INTO chats (type, name) VALUES ($1, $2) RETURNING id',
