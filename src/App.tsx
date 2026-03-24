@@ -6,7 +6,7 @@ import ChatList from './ChatList';
 import ChatWindow from './ChatWindow';
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, Shield, Lock, Loader2 } from 'lucide-react';
-import BackgroundPattern from './components/BackgroundPattern';
+import BackgroundPattern from './components/BackgroundPattern'; import { ErrorBoundary } from './ErrorBoundary';
 
 // Safe localStorage wrapper — Safari Private Mode throws on access
 const safeLS = {
@@ -108,7 +108,7 @@ function Dashboard({ theme, toggleTheme }: { theme: 'elegant' | 'vibrant', toggl
       {/* Main Content - Chat Window */}
       <div className={`${selectedChat ? 'flex' : 'hidden md:flex'} flex-1 flex-col h-full`}>
         {selectedChat ? (
-          <ChatWindow
+          <ErrorBoundary><ChatWindow
             chat={selectedChat}
             onBack={() => setSelectedChat(null)}
             onDelete={handleDelete}
