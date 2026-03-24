@@ -20,7 +20,7 @@ export default function Register() {
     setIsLoading(true);
     setError('');
     try {
-      const data = await authApi.register({ email, nickname, password });
+            const data = await authApi.register(email, password, nickname);
       await login(data, password);
       navigate('/');
     } catch (err: any) {
