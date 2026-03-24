@@ -166,7 +166,30 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
     } finally {
       setIsDecrypting(false);
     }
-  };
+  // Handle file selection
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+
+          // Check file size (max 10MB)
+          if (file.size > 10 * 1024 * 1024) {
+                  alert('File size must be less than 10MB');
+                  return;
+                }
+
+          setPendingFile(file);
+
+          // Create preview for images
+          if (file.type.startsWith('image/')) {
+                  const previewUrl = URL.createObjectURL(file);
+                  setPendingFilePreview(previewUrl);
+                } else {
+                  setPendingFilePreview(null);
+                }
+        };
+
+    
+    };
 
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
