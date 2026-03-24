@@ -16,38 +16,12 @@ export default defineConfig(({ mode }) => {
         filename: 'service-worker.ts',
         registerType: 'autoUpdate',
         injectRegister: false, // We register manually in registerSW.ts
-        manifest: {
-          name: 'CipherChat',
-          short_name: 'CipherChat',
-          description: 'Secure E2EE Chat PWA',
-          theme_color: '#09090b',
-          background_color: '#09090b',
-          display: 'standalone',
-          orientation: 'portrait',
-          icons: [
-            {
-              src: 'pwa-192x192.png',
-              sizes: '192x192',
-              type: 'image/png'
-            },
-            {
-              src: 'pwa-512x512.png',
-              sizes: '512x512',
-              type: 'image/png'
-            },
-            {
-              src: 'pwa-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'any maskable'
-            }
-          ]
-        },
+        // manifest is provided via public/manifest.webmanifest
         devOptions: {
           enabled: false,
-          type: 'module'
-        }
-      })
+          type: 'module',
+        },
+      }),
     ],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
@@ -59,7 +33,8 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      hmr: false,
+      hmr: true,
+      host: true,
     },
   };
 });
