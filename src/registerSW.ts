@@ -13,19 +13,29 @@ export function registerServiceWorker() {
       },
       onRegistered(registration) {
         console.log('Service Worker registered:', registration);
-        
-        // Request notification permission
-        if ('Notification' in window) {
-          Notification.requestPermission().then((permission) => {
-            if (permission === 'granted') {
-              console.log('Notification permission granted.');
-            }
-          });
-        }
+        // NOTE: Notification.requestPermission() removed from here.
+        // Safari requires it to be called from a user gesture (button click).
+        // Use requestNotificationPermission() exported below instead.
       },
       onRegisterError(error) {
         console.error('Service Worker registration failed:', error);
       },
     });
+  }
+}
+
+/**
+ * Call this function from a button click handler to request notification permission.
+ * Safari requires Notification.requestPermission() to be called from a user gesture.
+ */
+export async function requestNotificationPermission(): Promise<NotificationPermission | null> {
+  if (!('Notification' in window)) return null;
+  try {
+    const permission = await Notification.requestPermission();
+    console.log('Notification permission:', permission);
+    return permission;
+  } catch (e) {
+    console.error('Notification permission error:', e);
+    return null;
   }
 }
