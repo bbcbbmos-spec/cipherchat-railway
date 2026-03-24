@@ -10,13 +10,12 @@ export async function initDb() {
     throw new Error('DATABASE_URL environment variable is not set!');
   }
   console.log('Connecting to database:', databaseUrl.replace(/:[^:@]+@/, ':****@'));
-  
+
   pool = new Pool({
     connectionString: databaseUrl,
     ssl: { rejectUnauthorized: false },
   });
 
-  // Test connection
   const client = await pool.connect();
   console.log('Connected to PostgreSQL (Supabase)');
 
@@ -44,7 +43,8 @@ export async function initDb() {
       user_id INTEGER NOT NULL REFERENCES users(id),
       encrypted_key TEXT NOT NULL DEFAULT '',
       iv TEXT NOT NULL DEFAULT '',
-      is_favorite INTEGER DEFAULT 0
+      is_favorite INTEGER DEFAULT 0,
+      last_read_at TIMESTAMPTZ
     );
 
     CREATE TABLE IF NOT EXISTS messages (
@@ -80,12 +80,21 @@ export async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
   `);
 
-  // Seed bots (INSERT ... ON CONFLICT DO NOTHING = INSERT OR IGNORE в SQLite)
+  // Add last_read_at column to existing tables (migration for existing deployments)
+  await client.query(`
+    ALTER TABLE chat_participants ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMPTZ;
+  `);
+
+  // Seed bots
   await client.query(
-    `INSERT INTO users (email, nickname, password_hash, is_bot) VALUES ('q@bot.local', 'q', 'bot_password_hash', 1) ON CONFLICT (email) DO NOTHING`
+    `INSERT INTO users (email, nickname, password_hash, is_bot)
+     VALUES ('q@bot.local', 'q', 'bot_password_hash', 1)
+     ON CONFLICT (email) DO NOTHING`
   );
   await client.query(
-    `INSERT INTO users (email, nickname, password_hash, is_bot) VALUES ('w@bot.local', 'w', 'bot_password_hash', 1) ON CONFLICT (email) DO NOTHING`
+    `INSERT INTO users (email, nickname, password_hash, is_bot)
+     VALUES ('w@bot.local', 'w', 'bot_password_hash', 1)
+     ON CONFLICT (email) DO NOTHING`
   );
 
   client.release();
@@ -100,19 +109,16 @@ export function getDb() {
   return pool;
 }
 
-// Helper: выполнить запрос и вернуть все строки
 export async function dbAll(query: string, ...params: any[]) {
   const result = await pool.query(query, params);
   return result.rows;
 }
 
-// Helper: выполнить запрос и вернуть первую строку
 export async function dbGet(query: string, ...params: any[]) {
   const result = await pool.query(query, params);
   return result.rows[0] || null;
 }
 
-// Helper: выполнить INSERT/UPDATE/DELETE и вернуть результат
 export async function dbRun(query: string, ...params: any[]) {
   const result = await pool.query(query, params);
   return result;
