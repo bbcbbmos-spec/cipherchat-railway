@@ -106,7 +106,7 @@ function Dashboard({ theme, toggleTheme }: { theme: 'elegant' | 'vibrant', toggl
         <ChatList onSelectChat={setSelectedChat} selectedChatId={selectedChat?.id} key={refreshKey} />
       </div>
       {/* Main Content - Chat Window */}
-      <div className={`${selectedChat ? 'flex' : 'hidden md:flex'} flex-1 flex-col`}>
+      <div className={`${selectedChat ? 'flex' : 'hidden md:flex'} flex-1 flex-col h-full`}>
         {selectedChat ? (
           <ChatWindow
             chat={selectedChat}
