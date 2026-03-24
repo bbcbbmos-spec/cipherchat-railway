@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { apiFetch, chatApi, fileApi, userApi } from './api';
+import { apiFetch, chatApi, fileApi, userApi } from
+'./api';
 import { useAuth } from './AuthContext';
 import { base64ToBuffer, bufferToBase64, encryptFile, decryptFile, deriveSharedSecret } from './crypto';
 import { getSocket, sendSecureMessage, decryptSecureMessage } from './socket';
