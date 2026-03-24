@@ -347,7 +347,7 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
   };
 
   const deleteChat = async () => {
-    if (!window.confirm('Are you sure you want to delete this chat? This action cannot be undone.')) return;
+    if (!window.confirm('Delete this chat?')) return;
     try {
       await chatApi.delete(chat.id);
       if (onDelete) onDelete(chat.id);
@@ -357,9 +357,9 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-transparent h-full overflow-hidden relative">
+    <div className="flex-1 flex flex-col bg-transparent h-full min-h-0 overflow-hidden relative">
       {/* Header */}
-      <div className="p-4 md:p-6 bg-app-sidebar/80 backdrop-blur-md border-b border-app-secondary/20 flex items-center justify-between z-10">
+      <div className="p-4 md:p-6 bg-app-sidebar/80 backdrop-blur-md border-b border-app-secondary/20 flex items-center justify-between z-10 pt-[max(1rem,env(safe-area-inset-top))]">
         <div className="flex items-center gap-4">
           <button 
             onClick={onBack}
@@ -463,7 +463,7 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
       </div>
 
       {/* Input Area */}
-      <div className="p-4 md:p-6 bg-app-sidebar/80 backdrop-blur-md border-t border-app-secondary/20">
+      <div className="p-4 md:p-6 bg-app-sidebar/80 backdrop-blur-md border-t border-app-secondary/20 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <AnimatePresence>
           {pendingFile && (
             <motion.div 
@@ -583,7 +583,7 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
                   }
                 }}
                 placeholder={isRecordingVoice ? `Recording... ${Math.floor(voiceTimer/60)}:${String(voiceTimer%60).padStart(2,'0')}` : "Type your message..."}
-                className={`w-full bg-app-surface border border-app-secondary/20 rounded-2xl py-4 pl-4 pr-14 text-sm text-white focus:ring-2 focus:ring-app-primary/20 outline-none transition-all placeholder:text-app-text-muted/50 ${isRecordingVoice ? 'animate-pulse border-red-500/50' : ''}`}
+                className={`w-full bg-app-surface border border-app-secondary/20 rounded-2xl py-4 pl-4 pr-14 text-[16px] text-white focus:ring-2 focus:ring-app-primary/20 outline-none transition-all placeholder:text-app-text-muted/50 ${isRecordingVoice ? 'animate-pulse border-red-500/50' : ''}`}
                 disabled={isRecordingVoice}
               />
               
