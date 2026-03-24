@@ -1,5 +1,0 @@
-{
-  "name": "CipherChat PWA",
-  "description": "Безопасное приложение для чата со сквозным шифрованием и поддержкой PWA.",
-  "requestFramePermissions": []
-}

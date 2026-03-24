@@ -1,0 +1,9 @@
+{
+  "name": "CipherChat",
+  "short_name": "CipherChat",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0F1A",
+  "theme_color": "#EAB308",
+  "icons": []
+}
