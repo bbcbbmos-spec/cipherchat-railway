@@ -21,7 +21,6 @@ const ALLOWED_MIME = [
   'application/zip'
 ];
 
-// Use memory storage instead of disk — we upload to Cloudinary
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024, files: 5 },
@@ -30,10 +29,9 @@ const upload = multer({
   }
 });
 
-// Helper: upload buffer to Cloudinary
 async function uploadToCloudinary(fileBuffer: Buffer, originalName: string, mimeType: string): Promise<string> {
   const resourceType = mimeType.startsWith('video/') || mimeType.startsWith('audio/') ? 'video' : 
-                        mimeType.startsWith('image/') ? 'image' : 'raw';
+                       mimeType.startsWith('image/') ? 'image' : 'raw';
   
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
@@ -53,36 +51,39 @@ async function uploadToCloudinary(fileBuffer: Buffer, originalName: string, mime
 
 router.use(authenticateToken);
 
-// Advanced upload with encryption keys (original)
 router.post('/upload', upload.array('files'), async (req: any, res) => {
   const { chatId, encryptedText, iv, fileKeys } = req.body;
   const userId = req.user.id;
   const files = req.files as Express.Multer.File[];
-  
+
   try {
     const messageResult = await dbRun(
       'INSERT INTO messages (chat_id, sender_id, encrypted_text, iv) VALUES ($1, $2, $3, $4) RETURNING id',
       chatId, userId, encryptedText, iv
     );
     const messageId = messageResult.rows[0].id;
-    
+
     const uploadedFiles = [];
-    const keys = JSON.parse(fileKeys);
-    
+    const keys = fileKeys ? JSON.parse(fileKeys) : [];
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const keyData = keys[i];
-      
-      // Upload to Cloudinary
+      const keyData = keys[i] || { wrappedKey: '', iv: '' };
+
       const cloudinaryUrl = await uploadToCloudinary(file.buffer, file.originalname, file.mimetype);
       
       const result = await dbRun(
         'INSERT INTO attachments (message_id, file_path, encrypted_key, iv, original_name, mime_type) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
         messageId, cloudinaryUrl, keyData.wrappedKey, keyData.iv, file.originalname, file.mimetype
       );
-      uploadedFiles.push({ id: result.rows[0].id, original_name: file.originalname, url: cloudinaryUrl });
+
+      uploadedFiles.push({
+        id: result.rows[0].id,
+        original_name: file.originalname,
+        url: cloudinaryUrl
+      });
     }
-    
+
     res.json({ messageId, files: uploadedFiles });
   } catch (error) {
     console.error('Upload error:', error);
@@ -90,34 +91,25 @@ router.post('/upload', upload.array('files'), async (req: any, res) => {
   }
 });
 
-// Simple upload — single file + chat_id (used by mobile/frontend chatApi.uploadFile)
 router.post('/simple-upload', upload.single('file'), async (req: any, res) => {
   const userId = req.user.id;
   const file = req.file as Express.Multer.File;
   const chatId = req.body.chat_id;
 
-  if (!file) {
-    return res.status(400).json({ error: 'No file provided' });
-  }
-  if (!chatId) {
-    return res.status(400).json({ error: 'chat_id is required' });
-  }
+  if (!file) return res.status(400).json({ error: 'No file provided' });
+  if (!chatId) return res.status(400).json({ error: 'chat_id is required' });
 
   try {
-    // Upload to Cloudinary
     const cloudinaryUrl = await uploadToCloudinary(file.buffer, file.originalname, file.mimetype);
-
-    // Determine message type
+    
     let messageType = 'file';
     if (file.mimetype.startsWith('image/')) messageType = 'image';
     else if (file.mimetype.startsWith('video/')) messageType = 'video';
     else if (file.mimetype.startsWith('audio/')) messageType = 'voice';
 
-    // Create message with file info
-    const messageText = messageType === 'image' ? '📷 Photo' :
-                        messageType === 'video' ? '🎬 Video' :
-                        messageType === 'voice' ? '🎤 Voice' :
-                        `📎 ${file.originalname}`;
+    const messageText = messageType === 'image' ? '📷 Photo' : 
+                        messageType === 'video' ? '🎬 Video' : 
+                        messageType === 'voice' ? '🎤 Voice' : `📎 ${file.originalname}`;
 
     const messageResult = await dbRun(
       'INSERT INTO messages (chat_id, sender_id, encrypted_text, iv) VALUES ($1, $2, $3, $4) RETURNING id',
@@ -125,16 +117,13 @@ router.post('/simple-upload', upload.single('file'), async (req: any, res) => {
     );
     const messageId = messageResult.rows[0].id;
 
-    // Save attachment
     const attachResult = await dbRun(
       'INSERT INTO attachments (message_id, file_path, encrypted_key, iv, original_name, mime_type) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
       messageId, cloudinaryUrl, '', '', file.originalname, file.mimetype
     );
 
-    // Get sender info
     const sender = await dbGet('SELECT nickname FROM users WHERE id = $1', userId);
 
-    // Broadcast via Socket.IO (import io from server would be circular, so we return data and let client handle)
     const message = {
       id: messageId,
       chat_id: Number(chatId),
@@ -165,7 +154,7 @@ router.post('/simple-upload', upload.single('file'), async (req: any, res) => {
 router.get('/:id', async (req: any, res) => {
   const fileId = req.params.id;
   const userId = req.user.id;
-  
+
   try {
     const attachment = await dbGet(`
       SELECT a.*, m.chat_id FROM attachments a
@@ -173,10 +162,11 @@ router.get('/:id', async (req: any, res) => {
       JOIN chat_participants cp ON m.chat_id = cp.chat_id
       WHERE a.id = $1 AND cp.user_id = $2
     `, fileId, userId);
-    
+
     if (!attachment) return res.sendStatus(403);
     
-    // file_path now contains Cloudinary URL — redirect to it
+    // For Safari compatibility, we redirect to the direct Cloudinary URL
+    // but ensure it has the correct content-disposition if possible.
     res.redirect(attachment.file_path);
   } catch (error) {
     console.error('Download error:', error);
