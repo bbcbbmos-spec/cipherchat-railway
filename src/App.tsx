@@ -4,11 +4,11 @@ import Login from './Login';
 import Register from './Register';
 import ChatList from './ChatList';
 import ChatWindow from './ChatWindow';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component } from 'react';
 import { MessageSquare, Shield, Lock, Loader2 } from 'lucide-react';
 import BackgroundPattern from './components/BackgroundPattern';
 
-// Safe localStorage wrapper — Safari Private Mode throws on access
+class ErrorBoundary extends Component<{children:React.ReactNode},{error:Error|null}>{constructor(p:any){super(p);this.state={error:null};}static getDerivedStateFromError(e:Error){return{error:e};}render(){if(this.state.error)return <div style={{padding:'20px',color:'red',background:'#111',minHeight:'100vh'}}><h2>Error</h2><pre style={{whiteSpace:'pre-wrap',fontSize:'12px'}}>{this.state.error.message}{String(this.state.error.stack)}</pre><button onClick={()=>window.location.reload()} style={{marginTop:'16px',padding:'8px 16px',background:'#333',color:'white',border:'none',borderRadius:'8px',cursor:'pointer'}}>Reload</button></div>;return this.props.children;}} // Safe localStorage wrapper — Safari Private Mode throws on access
 const safeLS = {
   get: (key: string): string | null => {
     try { return localStorage.getItem(key); } catch { return null; }
