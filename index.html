@@ -1,42 +1,41 @@
 <!DOCTYPE html>
 <html lang="ru">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>CipherChat</title>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>CipherChat</title>
 
-    <!-- Safari PWA -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="CipherChat" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="theme-color" content="#09090b" />
+  <!-- Safari PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CipherChat" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#09090b" />
+  <meta name="format-detection" content="telephone=no" />
 
-    <!-- Safari иконки -->
-    <link rel="apple-touch-icon" sizes="192x192" href="/pwa-192x192.png" />
+  <!-- Safari Icons -->
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- Web manifest -->
-    <link rel="manifest" href="/manifest.webmanifest" />
+  <!-- Web Manifest -->
+  <link rel="manifest" href="/manifest.webmanifest" />
 
-    <style>
-      html, body {
-        height: 100%;
-        margin: 0;
-        overflow: hidden;
-        overscroll-behavior: none;
-      }
-      #root {
-        height: 100%;
-        overflow: hidden;
-        padding-top: env(safe-area-inset-top);
-        padding-bottom: env(safe-area-inset-bottom);
-        padding-left: env(safe-area-inset-left);
-        padding-right: env(safe-area-inset-right);
-      }
-    </style>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+  <style>
+    /* Prevent bounce scrolling on iOS but allow internal scrolling */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #09090b;
+    }
+    #root {
+      height: 100%;
+      height: 100dvh;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
 </html>
