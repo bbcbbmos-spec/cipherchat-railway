@@ -107,7 +107,7 @@ function Dashboard({ theme, toggleTheme }: { theme: 'elegant' | 'vibrant', toggl
   };
 
   return (
-    <div className="flex h-screen bg-app-bg overflow-hidden">
+    <div className="flex h-screen h-[100dvh] bg-app-bg overflow-hidden">
       {/* Sidebar - Chat List */}
       <div className={`${
         selectedChat ? 'hidden md:flex' : 'flex'
