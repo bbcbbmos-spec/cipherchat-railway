@@ -10,7 +10,7 @@ export async function apiFetch(endpoint: string, options: any = {}) {
   const token = tokenData?.value;
 
   // Ensure endpoint starts with /
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      const cleanEndpoint = '/api' + (endpoint.startsWith('/') ? endpoint : `/${endpoint}`);
   const url = `${API_BASE}${cleanEndpoint}`;
   console.log(`[apiFetch] Requesting: ${url}`, options);
 
