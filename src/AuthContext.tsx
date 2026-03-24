@@ -1,5 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { deriveKeyFromPassword, generateIdentityKeyPair, generateSigningKeyPair, encryptPrivateKey, decryptPrivateKey, bufferToBase64, base64ToBuffer } from './crypto';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import {
+  deriveKeyFromPassword,
+  generateIdentityKeyPair,
+  generateSigningKeyPair,
+  encryptPrivateKey,
+  decryptPrivateKey,
+  bufferToBase64,
+  base64ToBuffer
+} from './crypto';
 import { storage, StoreName } from './storage/indexedDB';
 import { disconnectSocket, refreshSocketToken } from './socket';
 import { userApi } from './api';
@@ -25,43 +33,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [signingKeyPair, setSigningKeyPair] = useState<CryptoKeyPair | null>(null);
   const [isLocked, setIsLocked] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const inactivityTimer = useRef<NodeJS.Timeout | null>(null);
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const userRef = useRef(user);
+  const isLockedRef = useRef(isLocked);
 
-  // Reset inactivity timer on user action
-  const resetInactivityTimer = () => {
-    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-    if (user && !isLocked) {
-      inactivityTimer.current = setTimeout(() => {
-        lock();
-      }, LOCK_TIMEOUT);
-    }
-  };
+  useEffect(() => { userRef.current = user; }, [user]);
+  useEffect(() => { isLockedRef.current = isLocked; }, [isLocked]);
 
-  const lock = () => {
-    // Clear keys from memory
+  const lock = useCallback(() => {
     setIdentityKeyPair(null);
     setSigningKeyPair(null);
     setIsLocked(true);
     console.log('App locked due to inactivity');
-  };
+  }, []);
+
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    if (userRef.current && !isLockedRef.current) {
+      inactivityTimer.current = setTimeout(() => {
+        lock();
+      }, LOCK_TIMEOUT);
+    }
+  }, [lock]);
+
+  // Set up activity listeners — depends on user so it resets on login
+  useEffect(() => {
+    const handleActivity = () => resetInactivityTimer();
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('click', handleActivity);
+    // Touch events for mobile/iOS — critical for Safari PWA
+    window.addEventListener('touchstart', handleActivity, { passive: true });
+    window.addEventListener('touchend', handleActivity, { passive: true });
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('click', handleActivity);
+      window.removeEventListener('touchstart', handleActivity);
+      window.removeEventListener('touchend', handleActivity);
+    };
+  }, [resetInactivityTimer]);
 
   useEffect(() => {
     const initAuth = async () => {
       try {
         const storedUser = await storage.get(StoreName.USER_DATA, 'current_user');
         const storedToken = await storage.get(StoreName.USER_DATA, 'auth_token');
-        
         if (storedUser && storedToken) {
           // Check if token is still valid
           try {
             const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/chats`, {
-              headers: { 
+              headers: {
                 'Authorization': `Bearer ${storedToken.value}`,
                 'ngrok-skip-browser-warning': 'true'
               }
             });
             if (res.status === 403 || res.status === 401) {
-              // Token expired or invalid - clear and show login
               await storage.clearAll();
               setIsLoading(false);
               return;
@@ -69,7 +96,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } catch (err) {
             console.warn('Token validation check failed', err);
           }
-          
           setUser(storedUser);
           setIsLocked(true); // Always start locked if keys are not in memory
         }
@@ -79,32 +105,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
       }
     };
-
     initAuth();
-
-    // Listen for activity to reset timer
-    const handleActivity = () => resetInactivityTimer();
-    window.addEventListener('mousemove', handleActivity);
-    window.addEventListener('keydown', handleActivity);
-    window.addEventListener('click', handleActivity);
-
-    return () => {
-      window.removeEventListener('mousemove', handleActivity);
-      window.removeEventListener('keydown', handleActivity);
-      window.removeEventListener('click', handleActivity);
-    };
-  }, []); // Run only once on mount
+  }, []);
 
   const login = async (data: any, password: string) => {
     const { user: userData, token } = data;
-    
     await storage.put(StoreName.USER_DATA, { key: 'auth_token', value: token });
     await storage.put(StoreName.USER_DATA, { key: 'current_user', ...userData });
     setUser(userData);
-    
+
     let keys = await storage.get(StoreName.IDENTITY_KEYS, userData.id);
     let salt: ArrayBuffer;
-
     if (!keys) {
       salt = crypto.getRandomValues(new Uint8Array(32)).buffer as ArrayBuffer;
     } else {
@@ -112,17 +123,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const passwordKey = await deriveKeyFromPassword(password, salt);
-    
+
     if (!keys) {
       const idKeyPair = await generateIdentityKeyPair();
       const signKeyPair = await generateSigningKeyPair();
-      
       const exportedIdPublic = await crypto.subtle.exportKey('spki', idKeyPair.publicKey);
       const encryptedIdPrivate = await encryptPrivateKey(idKeyPair.privateKey, passwordKey);
-      
       const exportedSignPublic = await crypto.subtle.exportKey('spki', signKeyPair.publicKey);
       const encryptedSignPrivate = await encryptPrivateKey(signKeyPair.privateKey, passwordKey);
-      
+
       keys = {
         id: userData.id,
         publicKey: bufferToBase64(exportedIdPublic),
@@ -133,10 +142,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signingIv: encryptedSignPrivate.iv,
         randomSalt: bufferToBase64(salt)
       };
-      
       await storage.put(StoreName.IDENTITY_KEYS, keys);
       await userApi.updatePublicKey(keys.publicKey);
-      
       setIdentityKeyPair(idKeyPair);
       setSigningKeyPair(signKeyPair);
     } else {
@@ -150,13 +157,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const unlock = async (password: string) => {
     if (!user) return;
-    
     const keys = await storage.get(StoreName.IDENTITY_KEYS, user.id);
     if (!keys) throw new Error('No keys found for user');
-    
     const salt = base64ToBuffer(keys.randomSalt || keys.salt);
     const passwordKey = await deriveKeyFromPassword(password, salt);
-    
     await unlockWithKeys(keys, passwordKey);
     setIsLocked(false);
     resetInactivityTimer();
@@ -170,7 +174,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       { name: 'ECDH', namedCurve: 'P-256' },
       ['deriveKey', 'deriveBits']
     );
-    
     const idPublicKey = await crypto.subtle.importKey(
       'spki',
       base64ToBuffer(keys.publicKey),
@@ -178,7 +181,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       true,
       []
     );
-
     const signPrivateKey = await decryptPrivateKey(
       keys.encryptedSigningPrivateKey!,
       keys.signingIv!,
@@ -186,7 +188,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       { name: 'ECDSA', namedCurve: 'P-256' },
       ['sign']
     );
-    
     const signPublicKey = await crypto.subtle.importKey(
       'spki',
       base64ToBuffer(keys.signingPublicKey!),
@@ -194,7 +195,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       true,
       ['verify']
     );
-    
     setIdentityKeyPair({ publicKey: idPublicKey, privateKey: idPrivateKey });
     setSigningKeyPair({ publicKey: signPublicKey, privateKey: signPrivateKey });
   };
@@ -205,7 +205,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSigningKeyPair(null);
     setIsLocked(false);
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-    
     await storage.clearAll();
     disconnectSocket();
   };
