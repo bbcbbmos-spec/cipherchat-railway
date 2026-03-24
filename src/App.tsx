@@ -30,7 +30,6 @@ function UnlockScreen() {
     setIsUnlocking(true);
     setError(null);
     try {
-      // Give UI a chance to show loading state before heavy crypto
       await new Promise(r => setTimeout(r, 50));
       await unlock(password);
     } catch (err) {
@@ -94,7 +93,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function Dashboard({ theme, toggleTheme }: { theme: 'elegant' | 'vibrant', toggleTheme: () => void }) {
-  const [selectedChat, setSelectedChat] = useState<string | null>(null);
+  const [selectedChat, setSelectedChat] = useState<any>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const handleDelete = () => {
     setSelectedChat(null);
@@ -104,13 +103,13 @@ function Dashboard({ theme, toggleTheme }: { theme: 'elegant' | 'vibrant', toggl
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar - Chat List */}
       <div className={`${selectedChat ? 'hidden md:flex' : 'flex'} w-full md:w-80 flex-shrink-0`}>
-        <ChatList onSelectChat={setSelectedChat} selectedChatId={selectedChat} key={refreshKey} />
+        <ChatList onSelectChat={setSelectedChat} selectedChatId={selectedChat?.id} key={refreshKey} />
       </div>
       {/* Main Content - Chat Window */}
       <div className={`${selectedChat ? 'flex' : 'hidden md:flex'} flex-1 flex-col`}>
         {selectedChat ? (
           <ChatWindow
-            chatId={selectedChat}
+            chat={selectedChat}
             onBack={() => setSelectedChat(null)}
             onDelete={handleDelete}
             theme={theme}
