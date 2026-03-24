@@ -6,7 +6,8 @@ import ChatList from './ChatList';
 import ChatWindow from './ChatWindow';
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, Shield, Lock, Loader2 } from 'lucide-react';
-import BackgroundPattern from './components/BackgroundPattern'; import { ErrorBoundary } from './ErrorBoundary';
+import BackgroundPattern from './components/BackgroundPattern';
+import { ErrorBoundary } from './ErrorBoundary';
 
 // Safe localStorage wrapper — Safari Private Mode throws on access
 const safeLS = {
@@ -42,17 +43,13 @@ function UnlockScreen() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <BackgroundPattern />
-      <div className="card max-w-md w-full p-8 text-center relative z-10">
-        <div className="flex justify-center mb-6">
-          {isUnlocking ? (
-            <Loader2 className="w-16 h-16 text-primary animate-spin" />
-          ) : (
-            <Lock className="w-16 h-16 text-primary" />
-          )}
+      <BackgroundPattern primaryColor="180, 130, 70" opacity={0.15} />
+      <div className="relative z-10 w-full max-w-md text-center">
+        <div className="mb-6">
+          {isUnlocking ? <Loader2 className="w-12 h-12 mx-auto animate-spin text-app-primary" /> : <Lock className="w-12 h-12 mx-auto text-app-primary" />}
         </div>
-        <h1 className="text-2xl font-bold mb-2">App Locked</h1>
-        <p className="text-secondary mb-8">Your session is encrypted. Enter your password to resume.</p>
+        <h2 className="text-2xl font-bold mb-2">App Locked</h2>
+        <p className="text-app-text-muted mb-8">Your session is encrypted. Enter your password to resume.</p>
         <form onSubmit={handleUnlock} className="space-y-4">
           <input
             type="password"
@@ -64,12 +61,8 @@ function UnlockScreen() {
             disabled={isUnlocking}
           />
           {error && <p className="text-red-400 text-sm">{error}</p>}
-          <button type="submit" className="btn-primary w-full disabled:opacity-50" disabled={isUnlocking}>
-            {isUnlocking ? (
-              <><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Decrypting...</>
-            ) : (
-              'Unlock Vault'
-            )}
+          <button type="submit" className="btn-primary w-full" disabled={isUnlocking}>
+            {isUnlocking ? <>Decrypting...</> : 'Unlock Vault'}
           </button>
         </form>
       </div>
@@ -80,11 +73,9 @@ function UnlockScreen() {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading, isLocked } = useAuth();
   if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-        <p className="text-secondary">Initializing CipherChat</p>
-      </div>
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+      <Loader2 className="w-8 h-8 animate-spin text-app-primary" />
+      <p className="text-app-text-muted">Initializing CipherChat</p>
     </div>
   );
   if (!user) return <Navigate to="/login" />;
@@ -100,30 +91,46 @@ function Dashboard({ theme, toggleTheme }: { theme: 'elegant' | 'vibrant', toggl
     setRefreshKey(prev => prev + 1);
   };
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Sidebar - Chat List */}
-      <div className={`${selectedChat ? 'hidden md:flex' : 'flex'} w-full md:w-80 flex-shrink-0`}>
-        <ChatList onSelectChat={setSelectedChat} selectedChatId={selectedChat?.id} key={refreshKey} />
+    <div className="flex h-[100dvh] overflow-hidden">
+      {/* Sidebar */}
+      <div className="w-80 flex-shrink-0 overflow-hidden">
+        <ChatList
+          onSelectChat={setSelectedChat}
+          selectedChatId={selectedChat?.id}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          refreshTrigger={refreshKey}
+        />
       </div>
-      {/* Main Content - Chat Window */}
-      <div className={`${selectedChat ? 'flex' : 'hidden md:flex'} flex-1 flex-col h-full`}>
-        {selectedChat ? (
-          <ErrorBoundary><ChatWindow
-            chat={selectedChat}
-            onBack={() => setSelectedChat(null)}
-            onDelete={handleDelete}
-            theme={theme}
-            toggleTheme={toggleTheme}
-          />
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <MessageSquare className="w-16 h-16 text-muted mx-auto mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Select a conversation</h3>
-              <p className="text-secondary">Choose a chat from the sidebar to start messaging.</p>
+      {/* Main content */}
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <ErrorBoundary
+          fallback={
+            <div style={{ padding: '20px', color: 'white', background: '#1a1a2e', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+              <p style={{ fontSize: '18px', fontWeight: 'bold' }}>Something went wrong</p>
+              <p style={{ fontSize: '13px', opacity: 0.6 }}>Could not load this chat. Please try going back and selecting the chat again.</p>
+              <button onClick={() => setSelectedChat(null)} style={{ marginTop: '8px', padding: '8px 16px', background: '#c9a84c', border: 'none', borderRadius: '8px', cursor: 'pointer', color: '#000' }}>Go back</button>
             </div>
-          </div>
-        )}
+          }
+        >
+          {selectedChat ? (
+            <ChatWindow
+              chat={selectedChat}
+              onBack={() => setSelectedChat(null)}
+              onDelete={handleDelete}
+              theme={theme}
+              toggleTheme={toggleTheme}
+            />
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <MessageSquare className="w-16 h-16 text-muted mx-auto mb-4" />
+                <h3 className="text-xl font-semibold mb-2">Select a conversation</h3>
+                <p className="text-secondary">Choose a chat from the sidebar to start messaging.</p>
+              </div>
+            </div>
+          )}
+        </ErrorBoundary>
       </div>
     </div>
   );
@@ -141,15 +148,17 @@ export default function App() {
   return (
     <AuthProvider>
       <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/" element={
-            <ProtectedRoute>
-              <Dashboard theme={theme} toggleTheme={toggleTheme} />
-            </ProtectedRoute>
-          } />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/" element={
+              <ProtectedRoute>
+                <Dashboard theme={theme} toggleTheme={toggleTheme} />
+              </ProtectedRoute>
+            } />
+          </Routes>
+        </ErrorBoundary>
       </Router>
     </AuthProvider>
   );
