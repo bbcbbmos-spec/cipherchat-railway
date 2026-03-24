@@ -8,7 +8,7 @@ console.log(`[API] Initialized with BASE: ${API_BASE}`);
 export async function apiFetch(endpoint: string, options: any = {}) {
   const tokenData = await storage.get(StoreName.USER_DATA, 'auth_token');
   const token = tokenData?.value;
-  
+
   // Ensure endpoint starts with /
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = `${API_BASE}${cleanEndpoint}`;
@@ -22,11 +22,18 @@ export async function apiFetch(endpoint: string, options: any = {}) {
   };
 
   console.log('Token for request:', token ? 'EXISTS' : 'MISSING');
+
+  // 15-second timeout via AbortController
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
   try {
     const response = await fetch(url, {
       ...options,
       headers,
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -36,74 +43,65 @@ export async function apiFetch(endpoint: string, options: any = {}) {
 
     return response.json();
   } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      console.error(`[apiFetch] Request timed out: ${url}`);
+      throw new Error('Request timed out');
+    }
     console.error(`[apiFetch] Network error or exception for ${url}:`, err);
     throw err;
   }
 }
 
 export const authApi = {
-  register: (data: any) => apiFetch('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
-  login: (data: any) => apiFetch('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-};
-
-export const chatApi = {
-  list: () => apiFetch('/api/chats'),
-  create: (data: any) => apiFetch('/api/chats', { method: 'POST', body: JSON.stringify(data) }),
-  getMessages: (chatId: number) => apiFetch(`/api/chats/${chatId}/messages`),
-  getParticipants: (chatId: number) => apiFetch(`/api/chats/${chatId}/participants`),
-  getSavedMessages: () => apiFetch('/api/chats/saved-messages'),
-  toggleFavorite: (chatId: number) => apiFetch(`/api/chats/${chatId}/favorite`, { method: 'POST' }),
-  toggleSaveMessage: (messageId: number) => apiFetch(`/api/chats/messages/${messageId}/save`, { method: 'POST' }),
-  delete: (chatId: number) => apiFetch(`/api/chats/${chatId}`, { method: 'DELETE' }),
-  uploadFile: async (file: File, chatId: number) => {
-    const tokenData = await storage.get(StoreName.USER_DATA, 'auth_token');
-    const token = tokenData?.value;
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('chat_id', chatId.toString());
-    const res = await fetch(`${API_BASE}/api/files/simple-upload`, {
+  login: (email: string, password: string) =>
+    apiFetch('/auth/login', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'ngrok-skip-browser-warning': 'true'
-      },
-      body: formData
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Upload failed' }));
-      throw new Error(err.error || 'Upload failed');
-    }
-    return res.json();
-  }
+      body: JSON.stringify({ email, password }),
+    }),
+  register: (email: string, password: string, nickname: string) =>
+    apiFetch('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, nickname }),
+    }),
+  me: () => apiFetch('/auth/me'),
 };
 
 export const userApi = {
-  search: (query: string) => apiFetch(`/api/users/search?query=${encodeURIComponent(query)}`),
-  updatePublicKey: (publicKey: string) => apiFetch('/api/users/public-key', { method: 'POST', body: JSON.stringify({ publicKey }) }),
-  getPublicKey: (userId: number) => apiFetch(`/api/users/${userId}/public-key`),
+  search: (query: string) =>
+    apiFetch(`/users/search?query=${encodeURIComponent(query)}`),
+  getPublicKey: (userId: number) =>
+    apiFetch(`/users/${userId}/public-key`),
+  updatePublicKey: (publicKey: string) =>
+    apiFetch('/users/public-key', {
+      method: 'POST',
+      body: JSON.stringify({ publicKey }),
+    }),
+};
+
+export const chatApi = {
+  list: () => apiFetch('/chats'),
+  create: (data: any) =>
+    apiFetch('/chats', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  delete: (chatId: number) =>
+    apiFetch(`/chats/${chatId}`, { method: 'DELETE' }),
+  getMessages: (chatId: number, limit = 50, before?: number) =>
+    apiFetch(`/chats/${chatId}/messages?limit=${limit}${before ? `&before=${before}` : ''}`),
+  markRead: (chatId: number) =>
+    apiFetch(`/chats/${chatId}/read`, { method: 'POST' }),
+  getSavedMessages: () => apiFetch('/chats/saved-messages'),
+  toggleSaveMessage: (messageId: number) =>
+    apiFetch(`/chats/messages/${messageId}/save`, { method: 'POST' }),
 };
 
 export const fileApi = {
-  upload: async (formData: FormData) => {
-    const tokenData = await storage.get(StoreName.USER_DATA, 'auth_token');
-    const token = tokenData?.value;
-    return fetch(`${API_BASE}/api/files/upload`, {
+  upload: (formData: FormData) =>
+    apiFetch('/files/upload', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'ngrok-skip-browser-warning': 'true',
-      },
+      headers: {},
       body: formData,
-    }).then(res => res.json());
-  },
-  download: async (fileId: number) => {
-    const tokenData = await storage.get(StoreName.USER_DATA, 'auth_token');
-    const token = tokenData?.value;
-    return fetch(`${API_BASE}/api/files/${fileId}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'ngrok-skip-browser-warning': 'true',
-      },
-    }).then(res => res.blob());
-  }
+    }),
 };
