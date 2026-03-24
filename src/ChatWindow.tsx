@@ -414,7 +414,7 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
             </div>
             {messages.map((m, i) => (
               <React.Fragment key={m.id || i}>
-                {chat.unread_count > 0 && i === messages.length - chat.unread_count && (
+                {chat.unread_count > 0 && i === messages.length - (chat.unread_count || 0) && (
                   <div className="flex items-center gap-4 py-4">
                     <div className="flex-1 h-[1px] bg-app-primary/30" />
                     <span className="text-[10px] font-bold uppercase tracking-widest text-app-primary">New Messages</span>
@@ -424,10 +424,10 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
                 <motion.div
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  className={`flex ${m.sender_id === user.id ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${m.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
                 >
                   <div className={`max-w-[85%] md:max-w-[70%] space-y-1`}>
-                    {m.sender_id !== user.id && (
+                    {m.sender_id !== user?.id && (
                       <p className="text-[10px] font-bold uppercase tracking-widest text-app-primary ml-4 mb-1 flex items-center gap-2">
                         {m.sender_nickname}
                         {m.sender_is_bot === 1 && (
@@ -436,7 +436,7 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
                       </p>
                     )}
                     <div className={`relative group px-5 py-3.5 rounded-3xl shadow-sm border border-app-secondary/20 ${
-                      m.sender_id === user.id 
+                      m.sender_id === user?.id 
                         ? 'bg-app-bubble-right text-app-bubble-right-text rounded-tr-none' 
                         : 'bg-app-bubble-left text-app-bubble-left-text rounded-tl-none'
                     }`}>
@@ -448,8 +448,8 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
                       />
                       
                       <div className={`flex items-center gap-1 mt-1.5 justify-end opacity-40 text-[9px] font-bold`}>
-                        {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        {m.sender_id === user.id && <Shield className="w-2.5 h-2.5" />}
+                        {m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                        {m.sender_id === user?.id && <Shield className="w-2.5 h-2.5" />}
                         <MessageStatus message={m} isOwn={m.sender_id === user?.id} />
                       </div>
                     </div>
