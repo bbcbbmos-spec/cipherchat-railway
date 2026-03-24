@@ -6,7 +6,6 @@ import ChatList from './ChatList';
 import ChatWindow from './ChatWindow';
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, Shield, Lock, Loader2 } from 'lucide-react';
-import BackgroundPattern from './components/BackgroundPattern';
 import { ErrorBoundary } from './ErrorBoundary';
 
 // Safe localStorage wrapper — Safari Private Mode throws on access
@@ -42,30 +41,39 @@ function UnlockScreen() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <BackgroundPattern primaryColor="180, 130, 70" opacity={0.15} />
-      <div className="relative z-10 w-full max-w-md text-center">
-        <div className="mb-6">
-          {isUnlocking ? <Loader2 className="w-12 h-12 mx-auto animate-spin text-app-primary" /> : <Lock className="w-12 h-12 mx-auto text-app-primary" />}
-        </div>
-        <h2 className="text-2xl font-bold mb-2">App Locked</h2>
-        <p className="text-app-text-muted mb-8">Your session is encrypted. Enter your password to resume.</p>
-        <form onSubmit={handleUnlock} className="space-y-4">
-          <input
-            type="password"
-            placeholder="Enter password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="input-field text-center text-lg disabled:opacity-50"
-            autoFocus
-            disabled={isUnlocking}
-          />
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          <button type="submit" className="btn-primary w-full" disabled={isUnlocking}>
-            {isUnlocking ? <>Decrypting...</> : 'Unlock Vault'}
-          </button>
-        </form>
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', height: '100%', padding: '20px',
+      paddingTop: 'max(20px, env(safe-area-inset-top))',
+      paddingBottom: 'max(20px, env(safe-area-inset-bottom))'
+    }}>
+      <div style={{ marginBottom: 24 }}>
+        {isUnlocking ? <Loader2 size={40} className="animate-spin" /> : <Lock size={40} />}
       </div>
+      <h2 style={{ color: '#fff', marginBottom: 8 }}>App Locked</h2>
+      <p style={{ color: '#888', textAlign: 'center', marginBottom: 24 }}>
+        Your session is encrypted. Enter your password to resume.
+      </p>
+      <form onSubmit={handleUnlock} style={{ width: '100%', maxWidth: 320 }}>
+        <input
+          type="password"
+          placeholder="Enter password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={{ width: '100%', padding: '12px 16px', borderRadius: 12,
+            border: '1px solid #333', background: '#1a1a1a', color: '#fff',
+            fontSize: 16, marginBottom: 12 }}
+          autoFocus
+          disabled={isUnlocking}
+        />
+        {error && <p style={{ color: '#f44', textAlign: 'center', marginBottom: 8 }}>{error}</p>}
+        <button type="submit" disabled={isUnlocking}
+          style={{ width: '100%', padding: '12px', borderRadius: 12,
+            background: '#c9a84c', border: 'none', color: '#000',
+            fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
+          {isUnlocking ? 'Decrypting...' : 'Unlock Vault'}
+        </button>
+      </form>
     </div>
   );
 }
@@ -73,29 +81,112 @@ function UnlockScreen() {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading, isLocked } = useAuth();
   if (isLoading) return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-      <Loader2 className="w-8 h-8 animate-spin text-app-primary" />
-      <p className="text-app-text-muted">Initializing CipherChat</p>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '100%', flexDirection: 'column', gap: 16 }}>
+      <Loader2 size={32} className="animate-spin" style={{ color: '#c9a84c' }} />
+      <span style={{ color: '#888', fontSize: 14 }}>Initializing CipherChat</span>
     </div>
   );
-  if (!user) return <Navigate to="/login" />;
+  if (!user) return <Navigate to="/login" replace />;
   if (isLocked) return <UnlockScreen />;
   return <>{children}</>;
 }
 
+// ====================================================================
+// Dashboard — Телеграм-подобный layout:
+// Мобил: список чатов | окно чата — видно по очереди, полный экран
+// Десктоп: две колонки рядом
+// ====================================================================
 function Dashboard({ theme, toggleTheme }: { theme: 'elegant' | 'vibrant', toggleTheme: () => void }) {
   const [selectedChat, setSelectedChat] = useState<any>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleSelectChat = (chat: any) => {
+    setSelectedChat(chat);
+  };
+
+  const handleBack = () => {
+    setSelectedChat(null);
+  };
+
   const handleDelete = () => {
     setSelectedChat(null);
     setRefreshKey(prev => prev + 1);
   };
+
+  if (isMobile) {
+    // Мобильный layout: один экран за раз
+    return (
+      <div style={{
+        position: 'fixed', inset: 0,
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingLeft: 'env(safe-area-inset-left)',
+        paddingRight: 'env(safe-area-inset-right)',
+        background: '#09090b',
+        overflow: 'hidden'
+      }}>
+        {/* Слайдер: если чат выбран — ChatWindow, если нет — ChatList */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          transform: selectedChat ? 'translateX(-100%)' : 'translateX(0)',
+          transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
+          willChange: 'transform'
+        }}>
+          <ChatList
+            onSelectChat={handleSelectChat}
+            selectedChatId={selectedChat?.id}
+            theme={theme}
+            toggleTheme={toggleTheme}
+            refreshTrigger={refreshKey}
+          />
+        </div>
+        <div style={{
+          position: 'absolute', inset: 0,
+          transform: selectedChat ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
+          willChange: 'transform'
+        }}>
+          {selectedChat ? (
+            <ErrorBoundary fallback={
+              <div style={{ padding: 24, color: '#f44', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                <p>Something went wrong. Please go back and try again.</p>
+                <button onClick={handleBack} style={{ padding: '8px 20px', background: '#c9a84c', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#000' }}>
+                  ← Go back
+                </button>
+              </div>
+            }>
+              <ChatWindow
+                chat={selectedChat}
+                onBack={handleBack}
+                onDelete={handleDelete}
+                theme={theme}
+                toggleTheme={toggleTheme}
+              />
+            </ErrorBoundary>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  // Десктопный layout: две колонки
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
+    <div style={{
+      display: 'flex', height: '100dvh', overflow: 'hidden',
+      background: '#09090b'
+    }}>
       {/* Sidebar */}
-      <div className="w-80 flex-shrink-0 overflow-hidden">
+      <div style={{ width: 380, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', overflow: 'hidden' }}>
         <ChatList
-          onSelectChat={setSelectedChat}
+          onSelectChat={handleSelectChat}
           selectedChatId={selectedChat?.id}
           theme={theme}
           toggleTheme={toggleTheme}
@@ -103,31 +194,28 @@ function Dashboard({ theme, toggleTheme }: { theme: 'elegant' | 'vibrant', toggl
         />
       </div>
       {/* Main content */}
-      <div className="flex-1 min-w-0 overflow-hidden">
-        <ErrorBoundary
-          fallback={
-            <div style={{ padding: '20px', color: 'white', background: '#1a1a2e', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-              <p style={{ fontSize: '18px', fontWeight: 'bold' }}>Something went wrong</p>
-              <p style={{ fontSize: '13px', opacity: 0.6 }}>Could not load this chat. Please try going back and selecting the chat again.</p>
-              <button onClick={() => setSelectedChat(null)} style={{ marginTop: '8px', padding: '8px 16px', background: '#c9a84c', border: 'none', borderRadius: '8px', cursor: 'pointer', color: '#000' }}>Go back</button>
-            </div>
-          }
-        >
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        <ErrorBoundary fallback={
+          <div style={{ padding: 24, color: '#f44', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, height: '100%', justifyContent: 'center' }}>
+            <p>Something went wrong loading this chat.</p>
+            <button onClick={handleBack} style={{ padding: '8px 20px', background: '#c9a84c', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#000' }}>
+              Go back
+            </button>
+          </div>
+        }>
           {selectedChat ? (
             <ChatWindow
               chat={selectedChat}
-              onBack={() => setSelectedChat(null)}
+              onBack={handleBack}
               onDelete={handleDelete}
               theme={theme}
               toggleTheme={toggleTheme}
             />
           ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <MessageSquare className="w-16 h-16 text-muted mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Select a conversation</h3>
-                <p className="text-secondary">Choose a chat from the sidebar to start messaging.</p>
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#555' }}>
+              <MessageSquare size={48} style={{ marginBottom: 16, opacity: 0.3 }} />
+              <h3 style={{ margin: 0, fontWeight: 500 }}>Select a conversation</h3>
+              <p style={{ margin: '8px 0 0', fontSize: 14 }}>Choose a chat from the sidebar to start messaging.</p>
             </div>
           )}
         </ErrorBoundary>
@@ -140,26 +228,27 @@ export default function App() {
   const [theme, setTheme] = useState<'elegant'|'vibrant'>(() => {
     return (safeLS.get('app-theme') as 'elegant'|'vibrant') || 'elegant';
   });
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     safeLS.set('app-theme', theme);
   }, [theme]);
+
   const toggleTheme = () => setTheme(t => t === 'elegant' ? 'vibrant' : 'elegant');
+
   return (
-    <AuthProvider>
-      <Router>
-        <ErrorBoundary>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/" element={
-              <ProtectedRoute>
-                <Dashboard theme={theme} toggleTheme={toggleTheme} />
-              </ProtectedRoute>
-            } />
-          </Routes>
-        </ErrorBoundary>
-      </Router>
-    </AuthProvider>
+    <Router>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/" element={
+            <ProtectedRoute>
+              <Dashboard theme={theme} toggleTheme={toggleTheme} />
+            </ProtectedRoute>
+          } />
+        </Routes>
+      </AuthProvider>
+    </Router>
   );
 }
