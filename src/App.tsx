@@ -4,11 +4,40 @@ import Login from './Login';
 import Register from './Register';
 import ChatList from './ChatList';
 import ChatWindow from './ChatWindow';
-import React, { useState, useEffect, Component } from 'react';
+import React, { useState, useEffect, Component, ReactNode } from 'react';
 import { MessageSquare, Shield, Lock, Loader2 } from 'lucide-react';
 import BackgroundPattern from './components/BackgroundPattern';
 
-class ErrorBoundary extends Component<{children:React.ReactNode},{error:Error|null}>{constructor(p:any){super(p);this.state={error:null};}static getDerivedStateFromError(e:Error){return{error:e};}render(){if(this.state.error)return <div style={{padding:'20px',color:'red',background:'#111',minHeight:'100vh'}}><h2>Error</h2><pre style={{whiteSpace:'pre-wrap',fontSize:'12px'}}>{this.state.error.message}{String(this.state.error.stack)}</pre><button onClick={()=>window.location.reload()} style={{marginTop:'16px',padding:'8px 16px',background:'#333',color:'white',border:'none',borderRadius:'8px',cursor:'pointer'}}>Reload</button></div>;return this.props.children;}} // Safe localStorage wrapper — Safari Private Mode throws on access
+class ErrorBoundary extends Component<{children:ReactNode},{hasError:boolean,error:Error|null}> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{padding:'20px',color:'#ff6b6b',background:'#111',minHeight:'100vh',fontFamily:'monospace'}}>
+          <h2 style={{marginBottom:'12px'}}>Something crashed</h2>
+          <pre style={{whiteSpace:'pre-wrap',fontSize:'12px',opacity:0.8}}>
+            {this.state.error?.message}
+            {'\n'}
+            {this.state.error?.stack}
+          </pre>
+          <button
+            onClick={() => window.location.reload()}
+            style={{marginTop:'16px',padding:'8px 16px',background:'#333',color:'white',border:'none',borderRadius:'8px',cursor:'pointer'}}
+          >Reload</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Safe localStorage wrapper - Safari Private Mode throws on access
 const safeLS = {
   get: (key: string): string | null => {
     try { return localStorage.getItem(key); } catch { return null; }
@@ -17,6 +46,8 @@ const safeLS = {
     try { localStorage.setItem(key, value); } catch {}
   },
 };
+
+const LOCK_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
 function UnlockScreen() {
   const { unlock } = useAuth();
@@ -44,16 +75,12 @@ function UnlockScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-app-bg flex items-center justify-center p-6 relative overflow-hidden">
-      <BackgroundPattern primaryColor="180, 130, 70" />
-      <div className="w-full max-w-md bg-app-surface/80 backdrop-blur-xl p-8 rounded-[2.5rem] border border-app-secondary/20 shadow-2xl relative z-10">
+    <div className="min-h-screen bg-app-bg flex items-center justify-center p-4 relative overflow-hidden">
+      <BackgroundPattern />
+      <div className="relative z-10 bg-app-surface/90 backdrop-blur-xl border border-app-secondary/30 rounded-3xl p-8 w-full max-w-md shadow-2xl">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-20 h-20 bg-app-primary/10 rounded-3xl flex items-center justify-center mb-6 border border-app-primary/20">
-            {isUnlocking ? (
-              <Loader2 className="w-10 h-10 text-app-primary animate-spin" />
-            ) : (
-              <Lock className="w-10 h-10 text-app-primary" />
-            )}
+          <div className="w-16 h-16 rounded-2xl bg-app-primary/20 flex items-center justify-center mb-4">
+            <Lock className="w-8 h-8 text-app-primary" />
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">App Locked</h2>
           <p className="text-app-text-muted text-sm text-center">Your session is encrypted. Enter your password to resume.</p>
@@ -61,38 +88,42 @@ function UnlockScreen() {
         <form onSubmit={handleUnlock} className="space-y-4">
           <input
             type="password"
-            placeholder="Enter password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="input-field text-center text-lg disabled:opacity-50"
+            onChange={e => setPassword(e.target.value)}
+            placeholder="Enter password"
+            className="w-full bg-app-bg border border-app-secondary/30 rounded-xl px-4 py-3 text-white outline-none focus:border-app-primary transition-colors"
             autoFocus
-            disabled={isUnlocking}
           />
           {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-          <button type="submit" disabled={isUnlocking} className="btn-primary w-full">
-            {isUnlocking ? (
-              <><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Decrypting...</>
-            ) : (
-              'Unlock Vault'
-            )}
+          <button
+            type="submit"
+            disabled={isUnlocking}
+            className="w-full bg-app-primary text-white py-3 rounded-xl font-semibold hover:bg-app-primary-hover transition-colors disabled:opacity-50"
+          >
+            {isUnlocking ? 'Unlocking...' : 'Unlock Vault'}
           </button>
         </form>
+        <p className="text-center text-app-text-muted text-xs mt-6 uppercase tracking-widest">End-to-End Encrypted</p>
       </div>
     </div>
   );
 }
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading, isLocked } = useAuth();
-  if (isLoading) return (
-    <div className="min-h-screen bg-app-bg flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="w-8 h-8 text-app-primary animate-spin" />
-        <p className="text-app-text-muted text-sm">Initializing CipherChat</p>
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { user, isLocked, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-app-bg flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-app-primary animate-spin" />
+          <p className="text-app-text-muted text-sm">Initializing CipherChat</p>
+        </div>
       </div>
-    </div>
-  );
-  if (!user) return <Navigate to="/login" />;
+    );
+  }
+
+  if (!user) return <Navigate to="/login" replace />;
   if (isLocked) return <UnlockScreen />;
   return <>{children}</>;
 }
@@ -160,18 +191,20 @@ export default function App() {
   const toggleTheme = () => setTheme(t => t === 'elegant' ? 'vibrant' : 'elegant');
 
   return (
-    <Router>
-      <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/" element={
-            <ProtectedRoute>
-              <Dashboard theme={theme} toggleTheme={toggleTheme} />
-            </ProtectedRoute>
-          } />
-        </Routes>
-      </AuthProvider>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/" element={
+              <ProtectedRoute>
+                <Dashboard theme={theme} toggleTheme={toggleTheme} />
+              </ProtectedRoute>
+            } />
+          </Routes>
+        </AuthProvider>
+      </Router>
+    </ErrorBoundary>
   );
 }
