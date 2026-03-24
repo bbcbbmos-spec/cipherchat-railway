@@ -101,6 +101,16 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const remoteSigningKeyRef = useRef<CryptoKey | null>(null);
 
+    // iOS Safari PWA viewport height fix
+    useEffect(() => {
+          const updateHeight = () => {
+                  document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+                };
+          updateHeight();
+          window.addEventListener('resize', updateHeight);
+          return () => window.removeEventListener('resize', updateHeight);
+        }, []);
+
   useEffect(() => {
     if (chat) {
       initChat();
