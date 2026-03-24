@@ -81,7 +81,7 @@ const MessageContent = ({ message }: { message: any }) => {
 export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme }: ChatWindowProps) {
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
-  const [isDecrypting, setIsDecrypting] = useState(true);
+  const [isDecrypting, setIsDecrypting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingFilePreview, setPendingFilePreview] = useState<string | null>(null);
