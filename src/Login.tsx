@@ -19,7 +19,7 @@ export default function Login() {
     setIsLoading(true);
     setError('');
     try {
-      const data = await authApi.login({ email, password });
+            const data = await authApi.login(email, password);
       await login(data, password);
       navigate('/');
     } catch (err: any) {
