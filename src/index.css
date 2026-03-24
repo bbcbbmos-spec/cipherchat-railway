@@ -49,8 +49,8 @@
 
 html {
   height: 100%;
-  /* Prevent Safari elastic scroll at the top */
   overflow: hidden;
+  -webkit-text-size-adjust: 100%; /* Prevent font scaling on orientation change */
 }
 
 body {
@@ -58,51 +58,52 @@ body {
   background-color: var(--color-app-bg);
   color: white;
   font-family: 'Inter', sans-serif;
-  /* Prevent bounce scroll on iOS */
   overscroll-behavior: none;
   overflow: hidden;
-  /* iOS safe areas */
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
-  /* Smooth momentum scrolling in Safari */
   -webkit-overflow-scrolling: touch;
 }
 
-/* Prevent 300ms tap delay on iOS */
+/* iOS Safe Areas Helper Classes */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.safe-p {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Prevent tap delay and improve touch responsiveness */
 * {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Custom Scrollbar — Chrome/Firefox */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--app-scrollbar) transparent;
+/* No scrollbar utility for Safari/Chrome */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-*::-webkit-scrollbar {
-  width: 6px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  background-color: var(--app-scrollbar);
-  border-radius: 20px;
-}
-
-/* Hide scrollbar in Safari (it doesn't support scrollbar-width) */
-@supports not (scrollbar-width: thin) {
+/* Custom Scrollbar for desktop */
+@media (min-width: 1024px) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--app-scrollbar) transparent;
+  }
   *::-webkit-scrollbar {
-    display: none;
+    width: 6px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--app-scrollbar);
+    border-radius: 20px;
   }
 }
 
-/* Scrollable areas — explicit overflow for lists */
 .overflow-y-auto {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
@@ -125,4 +126,11 @@ body {
 
 .input-field {
   @apply w-full bg-app-surface/50 border border-app-secondary/50 rounded-2xl py-3 px-4 text-white focus:ring-2 focus:ring-app-primary/30 focus:border-app-primary outline-none transition-all;
+}
+
+/* Input zoom fix for Safari on iOS (font-size >= 16px) */
+@media screen and (max-width: 768px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
 }
