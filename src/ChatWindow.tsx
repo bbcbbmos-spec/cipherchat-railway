@@ -357,7 +357,7 @@ export default function ChatWindow({ chat, onBack, onDelete, theme, toggleTheme 
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-transparent h-full min-h-0 overflow-hidden relative">
+    <div className="flex-1 flex flex-col bg-transparent h-full overflow-hidden relative">
       {/* Header */}
       <div className="p-4 md:p-6 bg-app-sidebar/80 backdrop-blur-md border-b border-app-secondary/20 flex items-center justify-between z-10 pt-[max(1rem,env(safe-area-inset-top))]">
         <div className="flex items-center gap-4">
